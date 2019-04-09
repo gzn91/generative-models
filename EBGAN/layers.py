@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow.contrib as tc
 import numpy as np
 
 
@@ -26,7 +27,7 @@ def fc(x, units, name, activation_fn=tf.nn.relu):
     with tf.variable_scope(name):
         nin = x.get_shape().as_list()[-1]
         scale = np.sqrt(2. / (nin + units))
-        w = tf.get_variable(shape=(nin, units), initializer=tf.random_normal_initializer(scale), name='w')
+        w = tf.get_variable(shape=(nin, units), initializer=tc.layers.xavier_initializer(), name='w')
         b = tf.get_variable(shape=(1, units), initializer=tf.zeros_initializer(), name='b')
 
         h = tf.matmul(x, w) + b
@@ -36,10 +37,11 @@ def fc(x, units, name, activation_fn=tf.nn.relu):
 
 
 def conv2d(x, filters, name, kernel_size=3, strides=1, padding='SAME',
-           activation_fn=tf.nn.leaky_relu, training=True, use_bn=False):
+           activation_fn=tf.nn.relu, training=True, use_bn=False):
     nb, nw, nh, nc = x.get_shape().as_list()
+    scale = np.sqrt(2. / (nh + nc))
     with tf.variable_scope(name):
-        wx = tf.get_variable("wx", [kernel_size, kernel_size, nc, filters], initializer=ortho_init(scale=np.sqrt(2)))
+        wx = tf.get_variable("wx", [kernel_size, kernel_size, nc, filters], initializer=tc.layers.xavier_initializer_conv2d())
         b = tf.get_variable("b", [1, 1, 1, filters], initializer=tf.constant_initializer(0.))
         x = tf.nn.conv2d(x, filter=wx, strides=[1, strides, strides, 1], padding=padding) + b
         if use_bn:
@@ -48,8 +50,9 @@ def conv2d(x, filters, name, kernel_size=3, strides=1, padding='SAME',
 
 
 def conv2d_transpose(x, filters, name, kernel_size=3, strides=2, padding='SAME',
-                     activation_fn=tf.nn.leaky_relu, training=True, use_bn=False):
+                     activation_fn=tf.nn.relu, training=True, use_bn=False):
     nb, nw, nh, nc = x.get_shape().as_list()
+    scale = np.sqrt(2. / (nh + nc))
     if padding == 'VALID':
         out_h = nh * strides + max(kernel_size - strides, 0)
         out_w = nw * strides + max(kernel_size - strides, 0)
@@ -61,7 +64,7 @@ def conv2d_transpose(x, filters, name, kernel_size=3, strides=2, padding='SAME',
     out_shape = [tf.shape(x)[0], out_h, out_w, filters]
 
     with tf.variable_scope(name):
-        wx = tf.get_variable("wx", [kernel_size, kernel_size, filters, nc], initializer=ortho_init(scale=np.sqrt(2)))
+        wx = tf.get_variable("wx", [kernel_size, kernel_size, filters, nc], initializer=tc.layers.xavier_initializer_conv2d())
         b = tf.get_variable("b", [1, 1, 1, filters], initializer=tf.constant_initializer(0.))
         x = tf.nn.conv2d_transpose(x, filter=wx, output_shape=out_shape,
                                    strides=[1, strides, strides, 1], padding=padding) + b
