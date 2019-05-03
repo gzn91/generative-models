@@ -1,7 +1,4 @@
 import tensorflow as tf
-from scipy.misc import imresize
-import imageio
-import tensorflow.contrib as tc
 import numpy as np
 from matplotlib import pyplot as plt
 from layers import conv2d, conv2d_transpose, fc
@@ -11,14 +8,14 @@ from datetime import datetime
 file_path = './cifar-10-batches-py'
 file_path2 = './train_9'
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_bool('train', False, 'If model should be trained.')
-flags.DEFINE_bool('restore', True, 'If restore previous model.')
-flags.DEFINE_integer('mb_size', 32, 'Size of minibatch')
+flags.DEFINE_bool('train', True, 'If model should be trained.')
+flags.DEFINE_bool('restore', False, 'If restore previous model.')
+flags.DEFINE_integer('mb_size', 16, 'Size of minibatch')
+
+
 
 
 class GAN(object):
@@ -92,30 +89,27 @@ class GAN(object):
 
         with tf.variable_scope(scope, reuse=reuse):
             x = img
-            h1 = conv2d(x, 32, strides=2, name='down1', training=self.is_training, use_bn=True)
+            h1 = conv2d(x, 128, strides=2, name='down1', training=self.is_training, use_bn=True)
+            h2 = conv2d(h1, 256, strides=2, name='down2', training=self.is_training, use_bn=True)
+            h3 = conv2d(h2, 512, strides=2, name='down3', training=self.is_training, use_bn=True)
 
-            h2 = conv2d(h1, 64, name='down2', training=self.is_training, use_bn=True)
+            h4_flat = tf.layers.flatten(h3)
 
-            h3 = conv2d(h2, 128, strides=2, name='down3')
-            h3_flat = tf.layers.flatten(h3)
-
-            logits = fc(h3_flat, 1, name='out', activation_fn=lambda x: x)
+            logits = fc(h4_flat, 1, name='out', activation_fn=lambda x: x)
 
             return logits, tf.nn.sigmoid(logits)
 
     def _generator(self, z, scope, reuse=False):
 
         with tf.variable_scope(scope, reuse=reuse):
-            z = fc(z, 3 * 3 * self._nd_z, 'fc-z')
-            z = tf.reshape(z, (-1, 3, 3, self._nd_z))
+            z = tf.reshape(z, (-1, 1, 1, self._nd_z))
 
-            h1 = conv2d_transpose(z, 256, name='up1', padding='VALID', training=self.is_training, use_bn=True)
+            h1 = conv2d_transpose(z, 1024, name='up1', padding='VALID')
+            h2 = conv2d_transpose(h1, 512, name='up2', padding='VALID', training=self.is_training, use_bn=True)
+            h3 = conv2d_transpose(h2, 256, name='up3', training=self.is_training, use_bn=True)
+            h4 = conv2d_transpose(h3, 128, name='up4', training=self.is_training, use_bn=True)
 
-            h2 = conv2d_transpose(h1, 128, name='up2', training=self.is_training, use_bn=True)
-
-            h3 = conv2d_transpose(h2, 64, name='up3')
-
-            recon = conv2d(h3, self._img_shape[-1], kernel_size=1, name='out')
+            recon = conv2d(h4, self._img_shape[-1], kernel_size=1, name='out')
 
             return tf.nn.sigmoid(recon)
 
@@ -165,6 +159,9 @@ class GAN(object):
 
 def main(_):
 
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+
     dataset = tf.keras.datasets.mnist
 
     np.random.seed(1)
@@ -173,7 +170,7 @@ def main(_):
 
     mb_size = FLAGS.mb_size
 
-    with tf.Session().as_default():
+    with tf.Session(config=config).as_default():
 
         gan = GAN(img_shape=shape, nd_latent=64)
         if FLAGS.restore:

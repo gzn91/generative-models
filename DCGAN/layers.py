@@ -37,7 +37,7 @@ def fc(x, units, name, activation_fn=tf.nn.relu):
 
 
 def conv2d(x, filters, name, kernel_size=3, strides=1, padding='SAME',
-           activation_fn=tf.nn.relu, training=True, use_bn=False):
+           activation_fn=tf.nn.leaky_relu, training=True, use_bn=False):
     nb, nw, nh, nc = x.get_shape().as_list()
     scale = np.sqrt(2. / (nh + nc))
     with tf.variable_scope(name):
